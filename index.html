@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ClinVoice – Voice Processing Studio</title>
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Font & Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* (keeps your style; trimmed for brevity - copy your existing CSS or keep this block) */
+    :root{--bg-1:#0b1116;--bg-2:#0f1720;--muted:#94a3b8;--accent:#6b7cff;--accent-2:#4f46e5}
+    *{box-sizing:border-box} body{margin:0;font-family:Inter,system-ui;padding:28px;background:linear-gradient(160deg,var(--bg-1),var(--bg-2));color:#e6eef8;min-height:100vh;display:flex;justify-content:center}
+    .app{width:1100px;display:grid;grid-template-columns:420px 1fr;gap:24px}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:14px;padding:18px}
+    header.app-header{display:flex;gap:14px;align-items:center;margin-bottom:10px}
+    header.app-header img{width:56px;height:56px;border-radius:8px;background:linear-gradient(135deg,#ffffff,#e6eef8);padding:8px;filter:brightness(1.2)}
+    .controls{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{border-radius:10px;padding:9px 14px;border:none;cursor:pointer;font-weight:600}
+    .btn-record{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#fff}
+    .btn-stop{background:#ef6b6b;color:#fff}
+    .btn-transcribe{background:#f59e0b;color:#081026}
+    .btn-diarize{background:#2563eb;color:#fff}
+    .status-row{margin-top:8px;color:var(--muted);font-weight:600}
+    audio#audioPlayer{width:100%;margin-top:12px;border-radius:10px;padding:8px}
+    .upload-box{margin-top:14px;border-radius:10px;border:1px dashed rgba(255,255,255,0.04);padding:14px;display:flex;align-items:center;gap:12px;cursor:pointer}
+    .actions-row{margin-top:12px;display:flex;gap:10px;flex-wrap:wrap}
+    .results-panel{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:14px;padding:18px;min-height:420px}
+    textarea{width:100%;min-height:120px;border-radius:10px;padding:12px;background:rgba(255,255,255,0.01);color:#e6eef8;border:1px solid rgba(255,255,255,0.03)}
+    .meta-small{color:var(--muted);font-size:13px}
+    .chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+    .chart-card{background:rgba(255,255,255,0.02);padding:12px;border-radius:10px}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="panel">
+      <header class="app-header">
+        <img src="https://www.svgrepo.com/show/270039/health-care-doctor.svg" alt="ClinVoice logo" />
+        <div>
+          <h1>ClinVoice</h1>
+          <p class="meta-small">Clinical conversation capture · diarization · transcription</p>
+        </div>
+      </header>
+
+      <div class="controls">
+        <button id="startBtn" class="btn btn-record"><i class="fa-solid fa-microphone"></i> Start Recording</button>
+        <button id="stopBtn" class="btn btn-stop"><i class="fa-solid fa-stop"></i> Stop Recording</button>
+        <button id="transcribeRecordingBtn" class="btn btn-transcribe"><i class="fa-solid fa-file-audio"></i> Transcribe</button>
+        <button id="diarizeRecordingBtn" class="btn btn-diarize"><i class="fa-solid fa-user-group"></i> Diarize</button>
+      </div>
+
+      <div class="status-row" id="statusText">Status: Idle <span id="timerText">00:00</span></div>
+
+      <audio id="audioPlayer" controls></audio>
+
+      <label class="upload-box" id="uploadLabel">
+        <div class="meta">
+          <p id="uploadName">Upload audio file</p>
+          <small class="meta-small" id="uploadHint">Supports MP3 / WAV / FLAC</small>
+        </div>
+        <i class="fa-solid fa-upload" style="font-size:20px;color:var(--muted)"></i>
+      </label>
+      <input type="file" id="fileInput" accept="audio/*" style="display:none;">
+
+      <div class="actions-row">
+        <button id="uploadDiarizeBtn" class="btn btn-record" style="background:#fff;color:#0b1116"><i class="fa-solid fa-cloud-arrow-up"></i> Upload & Diarize</button>
+        <button id="transcriptBtn" class="btn btn-ghost" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)"><i class="fa-solid fa-file-lines"></i> Transcribe</button>
+        <button id="downloadBtn" class="btn btn-ghost" style="background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)"><i class="fa-solid fa-download"></i> Download Recording</button>
+      </div>
+    </div>
+
+    <div class="results-panel">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <h3>Transcription & Diarization</h3>
+          <div class="meta-small" id="metaText">Waiting for input...</div>
+        </div>
+        <div class="meta-small" id="remoteName"></div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label class="form-label">Transcribed Text</label>
+        <textarea id="transcriptBox" readonly></textarea>
+      </div>
+
+      <div>
+        <label class="form-label">Diarized Segments</label>
+        <textarea id="diarizedBox" readonly style="min-height:160px"></textarea>
+      </div>
+
+      <div class="chart-row">
+        <div class="chart-card">
+          <strong>Processing Time</strong>
+          <canvas id="chartProcessing"></canvas>
+        </div>
+        <div class="chart-card">
+          <strong>Speech vs Silence</strong>
+          <canvas id="chartSpeech"></canvas>
+        </div>
+        <div class="chart-card">
+          <strong>Quality Radar</strong>
+          <canvas id="chartRadar"></canvas>
+        </div>
+        <div class="chart-card">
+          <strong>Segment Timeline (duration)</strong>
+          <canvas id="chartTimeline"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const BASE_URL = "http://127.0.0.1:5000";
+
+const fileInput = document.getElementById('fileInput');
+const uploadLabel = document.getElementById('uploadLabel');
+const uploadName = document.getElementById('uploadName');
+const uploadHint = document.getElementById('uploadHint');
+const audioPlayer = document.getElementById('audioPlayer');
+const metaText = document.getElementById('metaText');
+const remoteName = document.getElementById('remoteName');
+const statusText = document.getElementById('statusText');
+
+let localFile = null;
+
+// Fix double popup: prevent label default behavior and only call once
+uploadLabel.addEventListener('click', (e) => {
+  e.preventDefault();
+  fileInput.click();
+});
+fileInput.addEventListener('change', (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  localFile = f;
+  uploadName.textContent = f.name;
+  uploadHint.textContent = `File selected (${Math.round(f.size/1024)} KB)`;
+  metaText.textContent = "File selected: " + f.name;
+  remoteName.textContent = f.name;
+  audioPlayer.src = URL.createObjectURL(f);
+});
+
+// Simple recording controls (optional)
+let mediaRecorder = null, recordedChunks = [], recording=false;
+document.getElementById('startBtn').addEventListener('click', async ()=>{
+  if (recording) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    recordedChunks = [];
+    mediaRecorder.ondataavailable = ev => { if (ev.data.size>0) recordedChunks.push(ev.data); };
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      localFile = blob;
+      audioPlayer.src = URL.createObjectURL(blob);
+      uploadName.textContent = 'Recorded Audio';
+      uploadHint.textContent = 'Recorded audio ready';
+      metaText.textContent = 'Recorded audio ready';
+    };
+    mediaRecorder.start();
+    recording=true;
+    statusText.textContent = 'Recording...';
+  } catch(err) {
+    alert('Could not start recording: ' + err);
+  }
+});
+document.getElementById('stopBtn').addEventListener('click', ()=>{
+  if (!recording || !mediaRecorder) return;
+  mediaRecorder.stop();
+  recording=false;
+  statusText.textContent = 'Idle';
+});
+
+// Charts setup (Chart.js)
+let processingChart = new Chart(document.getElementById('chartProcessing').getContext('2d'), {
+  type: 'bar',
+  data: { labels: ['Processing'], datasets: [{ label:'Time (s)', data:[0], backgroundColor:'#4f46e5' }] },
+  options: { responsive:true, plugins:{legend:{display:false}} }
+});
+let speechChart = new Chart(document.getElementById('chartSpeech').getContext('2d'), {
+  type: 'pie',
+  data: { labels:['Speech','Silence'], datasets:[{ data:[1,1], backgroundColor:['#16a34a','#64748b'] }] },
+  options: { responsive:true }
+});
+let radarChart = new Chart(document.getElementById('chartRadar').getContext('2d'), {
+  type: 'radar',
+  data: { labels:['Whisper Conf','Speaker Consistency','Avg Seg (s)'], datasets:[{ label:'Quality', data:[0.8,0.8,1.3], backgroundColor:'rgba(79,70,229,0.2)', borderColor:'#4f46e5'}] },
+  options: { responsive:true, scales: { r: { beginAtZero:true, max:1.5 } } }
+});
+let timelineChart = new Chart(document.getElementById('chartTimeline').getContext('2d'), {
+  type: 'bar',
+  data: { labels: [], datasets: [{ label:'Segment duration (s)', data: [], backgroundColor:'#fb923c' }] },
+  options: { indexAxis:'y', responsive:true, plugins:{legend:{display:false}} }
+});
+
+// Upload & Diarize
+document.getElementById('uploadDiarizeBtn').addEventListener('click', async ()=>{
+  const f = localFile;
+  if (!f) return alert('Choose or record a file first.');
+  statusText.textContent = 'Uploading...';
+  const fd = new FormData();
+  // if blob has no name use default
+  const filename = f.name || 'recording.webm';
+  fd.append('file', f, filename);
+  try {
+    const up = await fetch(`${BASE_URL}/upload`, { method:'POST', body: fd });
+    const j = await up.json();
+    if (!j.path) { statusText.textContent = 'Upload failed'; return; }
+    statusText.textContent = 'Uploaded. Diarizing...';
+
+    const r = await fetch(`${BASE_URL}/diarize`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ path: j.path })
+    });
+    const out = await r.json();
+    if (out.error) {
+      statusText.textContent = 'Error: ' + out.error;
+      return;
+    }
+    // Format diarized conversation
+    const diar = out.diarized || [];
+    let conv = '';
+    diar.forEach(s => {
+      conv += `${s.speaker_role}: ${s.text}\n\n`;
+    });
+    document.getElementById('diarizedBox').value = conv;
+    document.getElementById('transcriptBox').value = (diar.map(s=>s.text).join(' ') || '');
+
+    // Update meta & charts
+    const m = out.metrics || {};
+    statusText.textContent = 'Diarization complete';
+    metaText.textContent = `Processing time: ${m.processing_time || '-'}s — Segments: ${m.total_segments || 0}`;
+    // processing chart
+    processingChart.data.datasets[0].data = [m.processing_time || 0];
+    processingChart.update();
+    // speech pie
+    speechChart.data.datasets[0].data = [ (m.speech_ratio_speech||0)*100, (m.speech_ratio_silence||0)*100 ];
+    speechChart.update();
+    // radar
+    radarChart.data.datasets[0].data = [ m.whisper_confidence||0, m.speaker_consistency||0, m.avg_segment || 0.0 ];
+    radarChart.update();
+    // timeline
+    const timeline = (m.segment_timeline || []).map(s => ({ label: s.speaker_role, value: (s.end - s.start) }));
+    timelineChart.data.labels = timeline.map((t,i)=> `${timeline[i].label} (${(timeline[i].value).toFixed(2)}s)` );
+    timelineChart.data.datasets[0].data = timeline.map(t=>t.value);
+    timelineChart.update();
+
+  } catch(err) {
+    console.error(err);
+    statusText.textContent = 'Error: ' + err.message;
+  }
+});
+
+// Upload & Transcribe (whole file)
+document.getElementById('transcriptBtn').addEventListener('click', async ()=>{
+  const f = localFile;
+  if (!f) return alert('Choose or record a file first.');
+  statusText.textContent = 'Uploading...';
+  const fd = new FormData();
+  const filename = f.name || 'recording.webm';
+  fd.append('file', f, filename);
+  try {
+    const up = await fetch(`${BASE_URL}/upload`, { method:'POST', body: fd });
+    const j = await up.json();
+    if (!j.path) { statusText.textContent = 'Upload failed'; return; }
+    statusText.textContent = 'Uploaded. Transcribing...';
+    const r = await fetch(`${BASE_URL}/transcribe`, {
+      method:'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ path: j.path })
+    });
+    const out = await r.json();
+    document.getElementById('transcriptBox').value = out.transcript || '';
+    statusText.textContent = 'Transcription complete';
+    // update a little metric for confidence if provided
+    if (out.whisper_confidence !== undefined) {
+      radarChart.data.datasets[0].data[0] = out.whisper_confidence;
+      radarChart.update();
+    }
+  } catch(err) { console.error(err); statusText.textContent = 'Error'; }
+});
+
+// Download (client side using uploaded file path on server)
+document.getElementById('downloadBtn').addEventListener('click', async ()=>{
+  const f = localFile;
+  if (!f) return alert('No file to download');
+  const url = URL.createObjectURL(f);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = f.name || 'recording.webm';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+});
+
+</script>
+</body>
+</html>

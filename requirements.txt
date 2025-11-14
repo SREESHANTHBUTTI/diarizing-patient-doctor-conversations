@@ -1,0 +1,14 @@
+flask
+flask-cors
+torch==1.12.1
+torchaudio==0.12.1
+torchvision==0.13.1
+whisper
+ffmpeg-python
+numpy
+soundfile
+huggingface-hub==0.8.1
+pyannote.audio==0.0.1
+pyannote.core==4.5
+pyannote.metrics==3.2
+pytorch-lightning==1.5.4
